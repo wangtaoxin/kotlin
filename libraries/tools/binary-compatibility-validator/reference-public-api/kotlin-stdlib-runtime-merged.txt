@@ -2980,6 +2980,7 @@ public abstract interface class kotlin/jvm/internal/markers/KMutableSet : kotlin
 
 public final class kotlin/properties/Delegates {
 	public static final field INSTANCE Lkotlin/properties/Delegates;
+	public final fun initOnce ()Lkotlin/properties/ReadWriteProperty;
 	public final fun notNull ()Lkotlin/properties/ReadWriteProperty;
 	public final fun observable (Ljava/lang/Object;Lkotlin/jvm/functions/Function3;)Lkotlin/properties/ReadWriteProperty;
 	public final fun vetoable (Ljava/lang/Object;Lkotlin/jvm/functions/Function3;)Lkotlin/properties/ReadWriteProperty;
