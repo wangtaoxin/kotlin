@@ -39,131 +39,131 @@ import org.jetbrains.kotlin.ir.util.transformFlat
 import org.jetbrains.kotlin.ir.visitors.IrElementTransformerVoid
 import org.jetbrains.kotlin.ir.visitors.transformChildrenVoid
 
-internal class InitializersLowering(val context: CommonBackendContext) : ClassLoweringPass {
-
-    object STATEMENT_ORIGIN_ANONYMOUS_INITIALIZER : IrStatementOriginImpl("ANONYMOUS_INITIALIZER")
-
-    object DECLARATION_ORIGIN_ANONYMOUS_INITIALIZER : IrDeclarationOriginImpl("ANONYMOUS_INITIALIZER")
-
-    override fun lower(irClass: IrClass) {
-        InitializersTransformer(irClass).lowerInitializers()
-    }
-
-    private inner class InitializersTransformer(val irClass: IrClass) {
-        val initializers = mutableListOf<IrStatement>()
-
-        fun lowerInitializers() {
-            collectAndRemoveInitializers()
-            val initializerMethodSymbol = createInitializerMethod()
-            lowerConstructors(initializerMethodSymbol)
-        }
-
-        private fun collectAndRemoveInitializers() {
-            // Do with one traversal in order to preserve initializers order.
-            irClass.transformChildrenVoid(object : IrElementTransformerVoid() {
-                override fun visitClass(declaration: IrClass): IrStatement {
-                    // Skip nested.
-                    return declaration
-                }
-
-                override fun visitAnonymousInitializer(declaration: IrAnonymousInitializer): IrStatement {
-                    initializers.add(IrBlockImpl(declaration.startOffset, declaration.endOffset,
-                                                 context.builtIns.unitType, STATEMENT_ORIGIN_ANONYMOUS_INITIALIZER, declaration.body.statements))
-                    return declaration
-                }
-
-                override fun visitField(declaration: IrField): IrStatement {
-                    val initializer = declaration.initializer ?: return declaration
-                    val startOffset = initializer.startOffset
-                    val endOffset = initializer.endOffset
-                    initializers.add(IrBlockImpl(startOffset, endOffset, context.builtIns.unitType, STATEMENT_ORIGIN_ANONYMOUS_INITIALIZER,
-                                                 listOf(
-                                    IrSetFieldImpl(startOffset, endOffset, declaration.symbol,
-                                            IrGetValueImpl(startOffset, endOffset, irClass.thisReceiver!!.symbol),
-                                            initializer.expression, STATEMENT_ORIGIN_ANONYMOUS_INITIALIZER))))
-                    declaration.initializer = null
-                    return declaration
-                }
-            })
-
-            irClass.declarations.transformFlat {
-                if (it !is IrAnonymousInitializer)
-                    null
-                else listOf()
-            }
-        }
-
-        private fun createInitializerMethod(): IrSimpleFunctionSymbol? {
-            if (irClass.descriptor.unsubstitutedPrimaryConstructor != null)
-                return null // Place initializers in the primary constructor.
-            val initializerMethodDescriptor = SimpleFunctionDescriptorImpl.create(
-                    /* containingDeclaration        = */ irClass.descriptor,
-                    /* annotations                  = */ Annotations.EMPTY,
-                    /* name                         = */ "INITIALIZER".synthesizedName,
-                    /* kind                         = */ CallableMemberDescriptor.Kind.DECLARATION,
-                    /* source                       = */ SourceElement.NO_SOURCE)
-            initializerMethodDescriptor.initialize(
-                    /* receiverParameterType        = */ null,
-                    /* dispatchReceiverParameter    = */ irClass.descriptor.thisAsReceiverParameter,
-                    /* typeParameters               = */ listOf(),
-                    /* unsubstitutedValueParameters = */ listOf(),
-                    /* returnType                   = */ context.builtIns.unitType,
-                    /* modality                     = */ Modality.FINAL,
-                    /* visibility                   = */ Visibilities.PRIVATE)
-            val startOffset = irClass.startOffset
-            val endOffset = irClass.endOffset
-            val initializer = IrFunctionImpl(startOffset, endOffset, DECLARATION_ORIGIN_ANONYMOUS_INITIALIZER,
-                                             initializerMethodDescriptor, IrBlockBodyImpl(startOffset, endOffset, initializers))
-
-            initializer.createParameterDeclarations()
-
-            irClass.declarations.add(initializer)
-
-            return initializer.symbol
-        }
-
-        private fun lowerConstructors(initializerMethodSymbol: IrSimpleFunctionSymbol?) {
-            irClass.transformChildrenVoid(object : IrElementTransformerVoid() {
-
-                override fun visitClass(declaration: IrClass): IrStatement {
-                    // Skip nested.
-                    return declaration
-                }
-
-                override fun visitConstructor(declaration: IrConstructor): IrStatement {
-                    val blockBody = declaration.body as? IrBlockBody ?: throw AssertionError("Unexpected constructor body: ${declaration.body}")
-
-                    blockBody.statements.transformFlat {
-                        when {
-                            it is IrInstanceInitializerCall -> {
-                                if (initializerMethodSymbol == null) {
-                                    assert(declaration.descriptor.isPrimary)
-                                    initializers
-                                } else {
-                                    val startOffset = it.startOffset
-                                    val endOffset = it.endOffset
-                                    listOf(IrCallImpl(startOffset, endOffset, initializerMethodSymbol).apply {
-                                        dispatchReceiver = IrGetValueImpl(startOffset, endOffset, irClass.thisReceiver!!.symbol)
-                                    })
-                                }
-                            }
-                        /**
-                         * IR for kotlin.Any is:
-                         * BLOCK_BODY
-                         *   DELEGATING_CONSTRUCTOR_CALL 'constructor Any()'
-                         *   INSTANCE_INITIALIZER_CALL classDescriptor='Any'
-                         *
-                         *   to avoid possible recursion we manually reject body generation for Any.
-                         */
-                            it is IrDelegatingConstructorCall && irClass.descriptor == context.builtIns.any
-                                    && it.descriptor == declaration.descriptor -> listOf()
-                            else -> null
-                        }
-                    }
-
-                    return declaration
-                }
-            })
-        }
-    }
-}
+//internal class InitializersLowering(val context: CommonBackendContext) : ClassLoweringPass {
+//
+//    object STATEMENT_ORIGIN_ANONYMOUS_INITIALIZER : IrStatementOriginImpl("ANONYMOUS_INITIALIZER")
+//
+//    object DECLARATION_ORIGIN_ANONYMOUS_INITIALIZER : IrDeclarationOriginImpl("ANONYMOUS_INITIALIZER")
+//
+//    override fun lower(irClass: IrClass) {
+//        InitializersTransformer(irClass).lowerInitializers()
+//    }
+//
+//    private inner class InitializersTransformer(val irClass: IrClass) {
+//        val initializers = mutableListOf<IrStatement>()
+//
+//        fun lowerInitializers() {
+//            collectAndRemoveInitializers()
+//            val initializerMethodSymbol = createInitializerMethod()
+//            lowerConstructors(initializerMethodSymbol)
+//        }
+//
+//        private fun collectAndRemoveInitializers() {
+//            // Do with one traversal in order to preserve initializers order.
+//            irClass.transformChildrenVoid(object : IrElementTransformerVoid() {
+//                override fun visitClass(declaration: IrClass): IrStatement {
+//                    // Skip nested.
+//                    return declaration
+//                }
+//
+//                override fun visitAnonymousInitializer(declaration: IrAnonymousInitializer): IrStatement {
+//                    initializers.add(IrBlockImpl(declaration.startOffset, declaration.endOffset,
+//                                                 context.builtIns.unitType, STATEMENT_ORIGIN_ANONYMOUS_INITIALIZER, declaration.body.statements))
+//                    return declaration
+//                }
+//
+//                override fun visitField(declaration: IrField): IrStatement {
+//                    val initializer = declaration.initializer ?: return declaration
+//                    val startOffset = initializer.startOffset
+//                    val endOffset = initializer.endOffset
+//                    initializers.add(IrBlockImpl(startOffset, endOffset, context.builtIns.unitType, STATEMENT_ORIGIN_ANONYMOUS_INITIALIZER,
+//                                                 listOf(
+//                                    IrSetFieldImpl(startOffset, endOffset, declaration.symbol,
+//                                            IrGetValueImpl(startOffset, endOffset, irClass.thisReceiver!!.symbol),
+//                                            initializer.expression, STATEMENT_ORIGIN_ANONYMOUS_INITIALIZER))))
+//                    declaration.initializer = null
+//                    return declaration
+//                }
+//            })
+//
+//            irClass.declarations.transformFlat {
+//                if (it !is IrAnonymousInitializer)
+//                    null
+//                else listOf()
+//            }
+//        }
+//
+//        private fun createInitializerMethod(): IrSimpleFunctionSymbol? {
+//            if (irClass.descriptor.unsubstitutedPrimaryConstructor != null)
+//                return null // Place initializers in the primary constructor.
+//            val initializerMethodDescriptor = SimpleFunctionDescriptorImpl.create(
+//                    /* containingDeclaration        = */ irClass.descriptor,
+//                    /* annotations                  = */ Annotations.EMPTY,
+//                    /* name                         = */ "INITIALIZER".synthesizedName,
+//                    /* kind                         = */ CallableMemberDescriptor.Kind.DECLARATION,
+//                    /* source                       = */ SourceElement.NO_SOURCE)
+//            initializerMethodDescriptor.initialize(
+//                    /* receiverParameterType        = */ null,
+//                    /* dispatchReceiverParameter    = */ irClass.descriptor.thisAsReceiverParameter,
+//                    /* typeParameters               = */ listOf(),
+//                    /* unsubstitutedValueParameters = */ listOf(),
+//                    /* returnType                   = */ context.builtIns.unitType,
+//                    /* modality                     = */ Modality.FINAL,
+//                    /* visibility                   = */ Visibilities.PRIVATE)
+//            val startOffset = irClass.startOffset
+//            val endOffset = irClass.endOffset
+//            val initializer = IrFunctionImpl(startOffset, endOffset, DECLARATION_ORIGIN_ANONYMOUS_INITIALIZER,
+//                                             initializerMethodDescriptor, IrBlockBodyImpl(startOffset, endOffset, initializers))
+//
+//            initializer.createParameterDeclarations()
+//
+//            irClass.declarations.add(initializer)
+//
+//            return initializer.symbol
+//        }
+//
+//        private fun lowerConstructors(initializerMethodSymbol: IrSimpleFunctionSymbol?) {
+//            irClass.transformChildrenVoid(object : IrElementTransformerVoid() {
+//
+//                override fun visitClass(declaration: IrClass): IrStatement {
+//                    // Skip nested.
+//                    return declaration
+//                }
+//
+//                override fun visitConstructor(declaration: IrConstructor): IrStatement {
+//                    val blockBody = declaration.body as? IrBlockBody ?: throw AssertionError("Unexpected constructor body: ${declaration.body}")
+//
+//                    blockBody.statements.transformFlat {
+//                        when {
+//                            it is IrInstanceInitializerCall -> {
+//                                if (initializerMethodSymbol == null) {
+//                                    assert(declaration.descriptor.isPrimary)
+//                                    initializers
+//                                } else {
+//                                    val startOffset = it.startOffset
+//                                    val endOffset = it.endOffset
+//                                    listOf(IrCallImpl(startOffset, endOffset, initializerMethodSymbol).apply {
+//                                        dispatchReceiver = IrGetValueImpl(startOffset, endOffset, irClass.thisReceiver!!.symbol)
+//                                    })
+//                                }
+//                            }
+//                        /**
+//                         * IR for kotlin.Any is:
+//                         * BLOCK_BODY
+//                         *   DELEGATING_CONSTRUCTOR_CALL 'constructor Any()'
+//                         *   INSTANCE_INITIALIZER_CALL classDescriptor='Any'
+//                         *
+//                         *   to avoid possible recursion we manually reject body generation for Any.
+//                         */
+//                            it is IrDelegatingConstructorCall && irClass.descriptor == context.builtIns.any
+//                                    && it.descriptor == declaration.descriptor -> listOf()
+//                            else -> null
+//                        }
+//                    }
+//
+//                    return declaration
+//                }
+//            })
+//        }
+//    }
+//}
