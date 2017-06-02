@@ -195,6 +195,12 @@ internal class Kotlin2JsSourceSetProcessor(
         kotlinTask.source(kotlinSourceSet.kotlin)
         createCleanSourceMapTask()
 
+        val dceTaskName = sourceSet.getTaskName("dce", "kotlin2Js")
+        val dceTask = project.tasks.create(dceTaskName, Kotlin2JsDce::class.java).also {
+            it.dependsOn(kotlinTask)
+            project.tasks.findByName(sourceSet.jarTaskName)?.dependsOn(it)
+        }
+
         // outputFile can be set later during the configuration phase, get it only after the phase:
         project.afterEvaluate {
             kotlinTask.kotlinOptions.outputFile = File(kotlinTask.outputFile).absolutePath
@@ -209,6 +215,10 @@ internal class Kotlin2JsSourceSetProcessor(
 
             sourceSet.output.setClassesDir(outputDir)
             kotlinTask.destinationDir = outputDir
+
+            dceTask.classpath = sourceSet.compileClasspath
+            dceTask.destinationDir = File(outputDir, "min")
+            dceTask.source(File(kotlinTask.outputFile))
         }
     }
 
