@@ -33,22 +33,41 @@ internal class PluginURLClassLoader(urls: Array<URL>, parent: ClassLoader) : Cla
         }
     }
 
+    override fun getResource(name: String): URL? = childClassLoader.getResource(name)
+
     override fun getResources(name: String): Enumeration<URL> = childClassLoader.getResources(name)
 
     private class SelfThenParentURLClassLoader(urls: Array<URL>, private val onFail: ClassLoader) : URLClassLoader(urls, null) {
-
         public override fun findClass(name: String): Class<*> {
-            val loaded = findLoadedClass(name)
-            if (loaded != null) {
-                return loaded
-            }
-
-            return try {
+            return findLoadedClass(name) ?: try {
                 super.findClass(name)
             }
             catch (e: ClassNotFoundException) {
                 onFail.loadClass(name)
             }
+        }
+
+        override fun findResource(name: String): URL? =
+                super.findResource(name) ?: onFail.getResource(name)
+
+        override fun findResources(name: String): Enumeration<URL> =
+                CompoundEnumeration(super.findResources(name), onFail.getResources(name))
+    }
+
+    private class CompoundEnumeration<E>(private vararg val enumerations: Enumeration<E>) : Enumeration<E> {
+        private var index = 0
+
+        override fun hasMoreElements(): Boolean {
+            while (index < enumerations.size) {
+                if (enumerations[index].hasMoreElements()) return true
+                index++
+            }
+            return false
+        }
+
+        override fun nextElement(): E {
+            if (hasMoreElements()) return enumerations[index].nextElement()
+            throw NoSuchElementException()
         }
     }
 }
